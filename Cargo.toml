@@ -12,6 +12,7 @@ description = "Stylus hello world example"
 alloy-primitives = "=0.8.20"
 alloy-sol-types = "=0.8.20"
 stylus-sdk = "0.9.0"
+openzeppelin-stylus = "=0.2.0"
 hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
@@ -24,7 +25,7 @@ dotenv = "0.15.0"
 
 [features]
 default = ["mini-alloc"]
-export-abi = ["stylus-sdk/export-abi"]
+export-abi = ["openzeppelin-stylus/export-abi"]
 debug = ["stylus-sdk/debug"]
 mini-alloc = ["stylus-sdk/mini-alloc"]
 
