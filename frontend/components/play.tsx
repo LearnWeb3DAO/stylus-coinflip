@@ -3,7 +3,6 @@
 import { CoinFlipModal } from "@/components/coin-flip-modal";
 import { CoinflipABI, CoinflipAddress } from "@/lib/coinflip";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import Link from "next/link";
 import { useState } from "react";
 import {
   formatEther,
@@ -184,7 +183,7 @@ export function Play() {
           )}
           {!canUserAffordBet && (
             <span className="text-sm text-red-400">
-              You don't have enough ETH to bet
+              You don&apos;t have enough ETH to bet
             </span>
           )}
         </div>
