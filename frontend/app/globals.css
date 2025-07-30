@@ -24,3 +24,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Coin Flip Animation */
+@keyframes flip {
+  0% {
+    transform: rotateX(0deg);
+  }
+  100% {
+    transform: rotateX(360deg);
+  }
+}
+
+.animate-flip {
+  animation: flip 0.8s infinite linear;
+  transform-style: preserve-3d;
+}
+
+.animate-flip img:first-child {
+  backface-visibility: hidden;
+  transform: rotateX(0deg);
+}
+
+.animate-flip img:last-child {
+  backface-visibility: hidden;
+  transform: rotateX(180deg);
+}

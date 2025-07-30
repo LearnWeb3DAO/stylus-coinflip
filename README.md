@@ -10,5 +10,6 @@
 - 0xa87bc4d22a302c0dc082f0ed70bb530f3476b71f
 
 - pn create next-app --typescript --tailwind --eslint --app frontend
-- pn add @rainbow-me/rainbowkit wagmi viem@2.x @tanstack/react-query
+- pn add @rainbow-me/rainbowkit wagmi viem@2.x @tanstack/react-query pino-pretty lokijs@1.x encoding
 - dashboard.reown.com - get project id
+- ensure coinflip contract has some money
