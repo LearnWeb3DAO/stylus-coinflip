@@ -7,14 +7,17 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+// Import Ownable contract from OpenZeppelin Stylus
 use openzeppelin_stylus::access::ownable::{self, IOwnable, Ownable};
+
+// Import Stylus SDK
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     alloy_sol_types::sol,
     prelude::*,
 };
 
-// Custom errors for the contract
+// Custom errors for our contract
 sol! {
     // Thrown when a player's bet is less than the minimum bet
     error MinBetNotMet(uint256 min_bet, uint256 player_bet);
@@ -32,12 +35,17 @@ sol! {
     error InsufficientBalance(uint256 balance, uint256 amount);
 }
 
+// Custom events for our contract
 sol! {
+    // Emitted when a new game is created (new bet is placed)
     event GameCreated(uint256 indexed nonce, address indexed player, uint256 bet);
+    // Emitted when a game is resolved (randomness is fulfilled and we decide win/loss)
     event GameResolved(uint256 indexed nonce, address indexed player, uint256 bet, bool won);
+    // Emitted when the owner makes a withdrawal from the contract
     event Withdrawal(address indexed to, uint256 amount);
 }
 
+// Rust types for the contract errors
 #[derive(SolidityError)]
 pub enum Error {
     GameNotFound(GameNotFound),
@@ -51,10 +59,13 @@ pub enum Error {
     InsufficientBalance(InsufficientBalance),
 }
 
+// Convert OpenZeppelin Stylus errors to our custom errors
 impl From<ownable::Error> for Error {
     fn from(value: ownable::Error) -> Self {
         match value {
+            // If we get an UnauthorizedAccount error from the Ownable contract, map it to our UnauthorizedAccount error
             ownable::Error::UnauthorizedAccount(e) => Error::UnauthorizedAccount(e),
+            // If we get an InvalidOwner error from the Ownable contract, map it to our InvalidOwner error
             ownable::Error::InvalidOwner(e) => Error::InvalidOwner(e),
         }
     }
@@ -69,16 +80,26 @@ sol_interface! {
 sol_storage! {
     #[entrypoint]
     pub struct Coinflip {
+        // Borrow the Ownable contract's storage
         #[borrow]
         Ownable ownable;
 
+        // Address of the subscription manager on Supra
+        // i.e. the address which is funding the randomness requests
         address subscription_manager;
+
+        // Address of the Supra router contract where we request randomness
         address supra_router;
+
+        // Minimum bet amount per game
         uint256 min_bet;
 
+        // Mapping of game nonces to game data
+        // Each game is uniquely identified by its nonce
         mapping(uint256 => Game) games;
     }
 
+    // Struct to store game data
     pub struct Game {
         uint256 bet;
         address player;
@@ -88,7 +109,9 @@ sol_storage! {
     }
 }
 
+// Private functions on our contract
 impl Coinflip {
+    // Internal helper function to request randomness from Supra VRF
     fn request_randomness(&mut self) -> Result<U256, Error> {
         let subscription_manager = self.subscription_manager.get();
         let router = ISupraRouterContract::from(self.supra_router.get());
@@ -107,10 +130,11 @@ impl Coinflip {
     }
 }
 
-/// Declare that `Counter` is a contract with the following external methods.
+// Public functions on our contract
 #[public]
 #[implements(IOwnable<Error = Error>)]
 impl Coinflip {
+    // Constructor for the contract, called when the contract is deployed
     #[constructor]
     pub fn constructor(
         &mut self,
@@ -129,11 +153,13 @@ impl Coinflip {
         Ok(self.ownable.constructor(initial_owner)?)
     }
 
+    // Place a bet and start a new game
     #[payable]
     pub fn new_game(&mut self) -> Result<(), Error> {
         let bet = self.vm().msg_value();
         let player = self.vm().msg_sender();
 
+        // Check if the bet is greater than the minimum bet
         if bet < self.min_bet.get() {
             return Err(Error::MinBetNotMet(MinBetNotMet {
                 min_bet: self.min_bet.get(),
@@ -141,7 +167,10 @@ impl Coinflip {
             }));
         }
 
+        // Request randomness from Supra VRF, and generate a new game nonce
         let nonce = self.request_randomness()?;
+
+        // Set the game data
         let mut game_setter = self.games.setter(nonce);
         game_setter.bet.set(bet);
         game_setter.player.set(player);
@@ -149,20 +178,28 @@ impl Coinflip {
         game_setter.won.set(false);
         game_setter.randomness.set(U256::ZERO);
 
+        // Log the game creation event
         log(self.vm(), GameCreated { nonce, player, bet });
 
         Ok(())
     }
 
+    // Callback function from Supra VRF, called when the randomness is fulfilled
+    // This is not meant to be called by users
     #[selector(name = "fulfillRandomness")]
     pub fn fulfill_randomness(&mut self, nonce: U256, rng_list: Vec<U256>) -> Result<(), Error> {
         let sender = self.vm().msg_sender();
+
+        // If the caller is not the Supra router, return an error
         if sender != self.supra_router.get() {
             return Err(Error::OnlySupraRouter(OnlySupraRouter {}));
         }
 
+        // Get the game data
         let game = self.games.get(nonce);
         let player = game.player.get();
+
+        // Check if the game exists and is not resolved
         let bet = game.bet.get();
         if player.is_zero() {
             return Err(Error::GameNotFound(GameNotFound {}));
@@ -171,14 +208,18 @@ impl Coinflip {
             return Err(Error::GameAlreadyResolved(GameAlreadyResolved {}));
         }
 
+        // Get the random number from the returned response
         let randomness = rng_list[0];
+        // 50-50 chance of winning based on whether the random number is even or odd
         let player_won = randomness % U256::from(2) == U256::ZERO;
 
+        // Set the game data
         let mut game_setter = self.games.setter(nonce);
         game_setter.randomness.set(randomness);
         game_setter.resolved.set(true);
         game_setter.won.set(player_won);
 
+        // If the player won, send them the winnings
         if player_won {
             // Send the user 1.9x the bet
             let winnings = bet * U256::from(19) / U256::from(10);
@@ -188,6 +229,7 @@ impl Coinflip {
             }
         }
 
+        // Log the game resolution event
         log(
             self.vm(),
             GameResolved {
@@ -201,9 +243,13 @@ impl Coinflip {
         Ok(())
     }
 
+    // Withdraw funds from the contract
     pub fn withdraw(&mut self, amount: U256) -> Result<(), Error> {
+        // Only callable by the owner of this contract
+        // This check will return an error if msg_sender() is not the owner
         self.ownable.only_owner()?;
 
+        // Ensure that the owner is trying to withdraw ETH that the contract can actually afford
         let balance = self.vm().balance(self.vm().contract_address());
         if balance < amount {
             return Err(Error::InsufficientBalance(InsufficientBalance {
@@ -212,11 +258,13 @@ impl Coinflip {
             }));
         }
 
+        // Transfer the funds to the owner
         let transfer_result = self.vm().transfer_eth(self.vm().msg_sender(), amount);
         if transfer_result.is_err() {
             return Err(Error::TransferFailed(TransferFailed {}));
         }
 
+        // Log the withdrawal event
         log(
             self.vm(),
             Withdrawal {
@@ -228,6 +276,10 @@ impl Coinflip {
         Ok(())
     }
 
+    // Generic receive() function to allow the contract to receive ETH
+    // without having to explicitly call a function
+    // We will use this to initially fund the contract with some ETH so we have money
+    // to pay users if the first person to play wins
     #[receive]
     #[payable]
     pub fn receive(&mut self) -> Result<(), Vec<u8>> {
@@ -235,6 +287,7 @@ impl Coinflip {
     }
 }
 
+// Implement the IOwnable interface
 #[public]
 impl IOwnable for Coinflip {
     type Error = Error;
@@ -249,17 +302,5 @@ impl IOwnable for Coinflip {
 
     fn renounce_ownership(&mut self) -> Result<(), Self::Error> {
         Ok(self.ownable.renounce_ownership()?)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_counter() {
-        use stylus_sdk::testing::*;
-        let vm = TestVM::default();
-        let mut _contract = Coinflip::from(&vm);
     }
 }
