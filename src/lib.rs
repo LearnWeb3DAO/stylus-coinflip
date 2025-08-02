@@ -186,7 +186,6 @@ impl Coinflip {
 
     // Callback function from Supra VRF, called when the randomness is fulfilled
     // This is not meant to be called by users
-    #[selector(name = "fulfillRandomness")]
     pub fn fulfill_randomness(&mut self, nonce: U256, rng_list: Vec<U256>) -> Result<(), Error> {
         let sender = self.vm().msg_sender();
 
