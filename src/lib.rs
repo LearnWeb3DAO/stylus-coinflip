@@ -8,7 +8,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 // Import Ownable contract from OpenZeppelin Stylus
-use openzeppelin_stylus::access::ownable::{self, IOwnable, Ownable};
+use openzeppelin_stylus::access::ownable::{self, Ownable};
 
 // Import Stylus SDK
 use stylus_sdk::{
@@ -132,7 +132,7 @@ impl Coinflip {
 
 // Public functions on our contract
 #[public]
-#[implements(IOwnable<Error = Error>)]
+#[inherit(Ownable)]
 impl Coinflip {
     // Constructor for the contract, called when the contract is deployed
     #[constructor]
@@ -283,23 +283,5 @@ impl Coinflip {
     #[payable]
     pub fn receive(&mut self) -> Result<(), Vec<u8>> {
         Ok(())
-    }
-}
-
-// Implement the IOwnable interface
-#[public]
-impl IOwnable for Coinflip {
-    type Error = Error;
-
-    fn owner(&self) -> Address {
-        self.ownable.owner()
-    }
-
-    fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), Self::Error> {
-        Ok(self.ownable.transfer_ownership(new_owner)?)
-    }
-
-    fn renounce_ownership(&mut self) -> Result<(), Self::Error> {
-        Ok(self.ownable.renounce_ownership()?)
     }
 }

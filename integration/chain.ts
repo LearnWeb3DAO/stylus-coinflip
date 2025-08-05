@@ -8,7 +8,7 @@ export const walletClient = createWalletClient({
   account: privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`),
 }).extend(publicActions);
 
-export const CoinflipAddress = "0xa87bc4d22a302c0dc082f0ed70bb530f3476b71f";
+export const CoinflipAddress = "0xc5f7e2e3ea007ff00796cde95f54b27d114ac33e";
 
 export const CoinflipABI = [
   { inputs: [], name: "GameAlreadyResolved", type: "error" },
